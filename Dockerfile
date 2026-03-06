@@ -2,17 +2,17 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Copy requirements
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir pyrogram==2.0.106 tgcrypto==1.2.5
 
-# Copy application
+# Copy app
 COPY . .
 
-# Create directories with proper permissions
+# Create directories
 RUN mkdir -p downloads /tmp/careerwill_sessions && \
     chmod 777 downloads && \
     chmod 777 /tmp/careerwill_sessions
 
-# Run the bot
+# Run
 CMD ["python", "main.py"]
