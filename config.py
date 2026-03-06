@@ -7,7 +7,7 @@ COMPLETE WORKING VERSION
 # ==================== TELEGRAM API CREDENTIALS ====================
 API_ID = 21503125
 API_HASH = "bab9855c442e9e4e87f413cb5b9dc3f9"
-BOT_TOKEN = "8768725493:AAFDhnWucAWD9Tl9djbRtOr6v5bUUOFmCQY"
+BOT_TOKEN = "8781174136:AAGaqdtP5i-AHAUmMy5ZXIjIj-QxF9IU-aQ"
 
 # Channel ID for logs - OPTIONAL (set to None if not using)
 CHANNEL_ID = None  # या अपना चैनल आईडी डालें: -1003724248856
