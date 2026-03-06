@@ -1,194 +1,158 @@
+#!/usr/bin/env python3
 """
-CareerWill Bot - Utils Package
-This package contains all utility functions for the CareerWill Telegram Bot.
+Handlers Package Initialization
+CareerWill Premium Telegram Bot
+
+This package contains all command handlers for the bot:
+- /start - Welcome message
+- /help - Help guide
+- /about - Bot information
+- /cwextractfree - Extract batch
+- /allbatches - View all batches
 """
 
-# Import all API helper functions
-from .api_helper import (
-    # Core functions
-    fetch_json,
-    fetch_with_retry,
-    
-    # Video functions
-    get_video_url,
-    get_video_details,
-    
-    # Batch functions
-    get_batch_info,
-    get_batch_details,
-    get_topic_details,
-    get_all_batches,
-    
-    # Extraction functions
-    process_topic,
-    extract_batch,
-    extract_multiple_batches,
-    
-    # Progress tracking
-    ExtractionProgress,
-    format_progress_bar,
-    
-    # Statistics
-    ExtractionStats,
-    
-    # Utility functions
-    validate_batch_id,
-    check_api_status
-)
+import logging
+from typing import Dict, Any
 
-# Import all file helper functions
-from .file_helper import (
-    # File operations
-    sanitize_filename,
-    save_to_file,
-    read_from_file,
-    cleanup_file,
-    cleanup_all_files,
-    
-    # File validation
-    validate_file,
-    get_file_size,
-    is_valid_txt,
-    
-    # File formatting
-    format_file_caption,
-    generate_filename,
-    
-    # Directory management
-    ensure_download_dir,
-    get_download_dir,
-    clear_download_dir,
-    get_disk_usage,
-    
-    # Batch file operations
-    merge_batch_files,
-    split_large_file,
-    
-    # Encoding helpers
-    detect_encoding,
-    convert_encoding
-)
+# Configure logger for handlers package
+logger = logging.getLogger(__name__)
 
-# Version info
-__version__ = "3.0.0"
-__author__ = "Ayushxsdy"
-__description__ = "CareerWill Premium Bot Utils Package"
+# ==================== COMMAND HANDLERS ====================
 
-# Package metadata
+# Import all handler functions
+from .start_handler import start_command
+from .help_handler import help_command
+from .about_handler import about_command
+from .extract_handler import extract_command
+from .batches_handler import all_batches_command, batches_callback
+
+# ==================== PACKAGE EXPORTS ====================
+
+# Define what gets imported with "from handlers import *"
 __all__ = [
-    # API Helper exports
-    'fetch_json',
-    'fetch_with_retry',
-    'get_video_url',
-    'get_video_details',
-    'get_batch_info',
-    'get_batch_details',
-    'get_topic_details',
-    'get_all_batches',
-    'process_topic',
-    'extract_batch',
-    'extract_multiple_batches',
-    'ExtractionProgress',
-    'format_progress_bar',
-    'ExtractionStats',
-    'validate_batch_id',
-    'check_api_status',
+    # Command handlers
+    'start_command',
+    'help_command', 
+    'about_command',
+    'extract_command',
+    'all_batches_command',
+    'batches_callback',
     
-    # File Helper exports
-    'sanitize_filename',
-    'save_to_file',
-    'read_from_file',
-    'cleanup_file',
-    'cleanup_all_files',
-    'validate_file',
-    'get_file_size',
-    'is_valid_txt',
-    'format_file_caption',
-    'generate_filename',
-    'ensure_download_dir',
-    'get_download_dir',
-    'clear_download_dir',
-    'get_disk_usage',
-    'merge_batch_files',
-    'split_large_file',
-    'detect_encoding',
-    'convert_encoding'
+    # Package metadata (will be added below)
 ]
 
-# Package initialization
-def initialize_utils():
-    """Initialize all utility modules"""
-    from .api_helper import initialize_api
-    from .file_helper import initialize_file_system
-    
-    # Initialize API
-    initialize_api()
-    
-    # Initialize file system
-    initialize_file_system()
-    
-    return True
+# ==================== PACKAGE METADATA ====================
 
-# Run initialization
-initialize_utils()
+__version__ = '3.0.0'
+__author__ = 'Ayushxsdy'
+__description__ = 'CareerWill Premium Bot - Command Handlers Package'
+__license__ = 'MIT'
 
-# Package information
-def get_package_info():
-    """Get package information"""
+# ==================== PACKAGE INITIALIZATION ====================
+
+def initialize_handlers() -> bool:
+    """
+    Initialize all handlers package
+    
+    Returns:
+        bool: True if initialization successful
+    """
+    try:
+        logger.info("🚀 Initializing handlers package...")
+        
+        # Log all available handlers
+        handlers_list = [
+            'start_command',
+            'help_command',
+            'about_command', 
+            'extract_command',
+            'all_batches_command',
+            'batches_callback'
+        ]
+        
+        logger.info(f"📋 Registered handlers: {', '.join(handlers_list)}")
+        logger.info("✅ Handlers package initialized successfully")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize handlers: {str(e)}")
+        return False
+
+# ==================== PACKAGE INFORMATION ====================
+
+def get_package_info() -> Dict[str, Any]:
+    """
+    Get handlers package information
+    
+    Returns:
+        Dict with package metadata
+    """
     return {
-        'name': 'careerwill_utils',
+        'name': 'handlers',
         'version': __version__,
         'author': __author__,
         'description': __description__,
-        'modules': ['api_helper', 'file_helper'],
+        'license': __license__,
+        'handlers': [
+            'start_command',
+            'help_command',
+            'about_command',
+            'extract_command',
+            'all_batches_command',
+            'batches_callback'
+        ],
         'features': [
-            'Batch Extraction',
-            'Video Processing',
-            'PDF Extraction',
-            'File Management',
-            'Progress Tracking',
-            'Statistics Generation'
+            'Welcome message with premium UI',
+            'Detailed help guide',
+            'Bot information',
+            'Batch extraction with progress tracking',
+            'All batches view with pagination',
+            'Click-to-copy batch IDs',
+            'Multiple batch support',
+            'Real-time progress updates'
         ]
     }
 
-# Error classes
-class UtilsError(Exception):
-    """Base exception for utils package"""
+# ==================== ERROR HANDLING ====================
+
+class HandlersError(Exception):
+    """Base exception for handlers package"""
     pass
 
-class APIError(UtilsError):
-    """API related errors"""
+class CommandNotFoundError(HandlersError):
+    """Raised when command is not found"""
     pass
 
-class FileError(UtilsError):
-    """File operation errors"""
+class HandlerExecutionError(HandlersError):
+    """Raised when handler execution fails"""
     pass
 
-class ValidationError(UtilsError):
-    """Validation errors"""
-    pass
+# ==================== RUN INITIALIZATION ====================
 
-# Logging setup
-import logging
-logger = logging.getLogger(__name__)
+# Auto-initialize when package is imported
+if not initialize_handlers():
+    logger.warning("⚠️ Handlers package initialization had issues")
 
-def setup_logging(level=logging.INFO):
-    """Setup logging for utils package"""
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    logger.setLevel(level)
-    logger.info("✅ Utils package logging initialized")
+# ==================== EXPORT EVERYTHING ====================
 
-# Call setup
-setup_logging()
-
-# Export all
+# Add error classes to exports
 __all__.extend([
-    'UtilsError',
-    'APIError',
-    'FileError',
-    'ValidationError',
-    'get_package_info'
+    'HandlersError',
+    'CommandNotFoundError',
+    'HandlerExecutionError',
+    'get_package_info',
+    'initialize_handlers'
 ])
+
+# ==================== CLEANUP ====================
+
+def cleanup_handlers():
+    """Cleanup handlers package resources"""
+    logger.info("🧹 Cleaning up handlers package...")
+    # Add any cleanup code here if needed
+
+import atexit
+atexit.register(cleanup_handlers)
+
+# ==================== END OF FILE ====================
