@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
 CareerWill Premium Bot - Main Entry Point
-FINAL VERSION with proper ASCII health check
+COMPLETE WORKING VERSION - All errors fixed
 """
 
 import os
 import sys
 import logging
 import asyncio
+import threading
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message
 
 # Add to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -42,7 +44,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create necessary directories with proper permissions
+# Create necessary directories
 DOWNLOAD_DIR = "downloads"
 SESSION_DIR = "/tmp/careerwill_sessions"
 
@@ -55,7 +57,7 @@ os.chmod(SESSION_DIR, 0o777)
 logger.info(f"📁 Download directory: {os.path.abspath(DOWNLOAD_DIR)}")
 logger.info(f"📁 Session directory: {SESSION_DIR}")
 
-# Initialize bot with correct session path
+# Initialize bot
 app = Client(
     "careerwill_bot",
     api_id=API_ID,
@@ -74,7 +76,7 @@ async def start(client: Client, message: Message):
         logger.info(f"User {message.from_user.id} started bot")
     except Exception as e:
         logger.error(f"Start error: {e}")
-        await message.reply_text(f"{EMOJI['error']} **Error occurred**")
+        await message.reply_text(f"{EMOJI['error']} Error occurred")
 
 @app.on_message(filters.command(["help"]))
 async def help(client: Client, message: Message):
@@ -82,7 +84,7 @@ async def help(client: Client, message: Message):
         await help_command(client, message)
     except Exception as e:
         logger.error(f"Help error: {e}")
-        await message.reply_text(f"{EMOJI['error']} **Error occurred**")
+        await message.reply_text(f"{EMOJI['error']} Error occurred")
 
 @app.on_message(filters.command(["about"]))
 async def about(client: Client, message: Message):
@@ -90,7 +92,7 @@ async def about(client: Client, message: Message):
         await about_command(client, message)
     except Exception as e:
         logger.error(f"About error: {e}")
-        await message.reply_text(f"{EMOJI['error']} **Error occurred**")
+        await message.reply_text(f"{EMOJI['error']} Error occurred")
 
 @app.on_message(filters.command(["cwextractfree"]))
 async def extract(client: Client, message: Message):
@@ -98,7 +100,7 @@ async def extract(client: Client, message: Message):
         await extract_command(client, message)
     except Exception as e:
         logger.error(f"Extract error: {e}")
-        await message.reply_text(f"{EMOJI['error']} **Error occurred**")
+        await message.reply_text(f"{EMOJI['error']} Error occurred")
 
 @app.on_message(filters.command(["allbatches"]))
 async def all_batches(client: Client, message: Message):
@@ -106,7 +108,7 @@ async def all_batches(client: Client, message: Message):
         await all_batches_command(client, message)
     except Exception as e:
         logger.error(f"Batches error: {e}")
-        await message.reply_text(f"{EMOJI['error']} **Error occurred**")
+        await message.reply_text(f"{EMOJI['error']} Error occurred")
 
 # ==================== TEXT HANDLER ====================
 
@@ -137,15 +139,11 @@ async def callback_handler(client: Client, callback_query):
 
 # ==================== HEALTH CHECK SERVER ====================
 
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
-        # Using plain ASCII text only - no emojis or special characters
         self.wfile.write(b'CareerWill Bot is running! Status: Online')
     
     def log_message(self, format, *args):
@@ -160,16 +158,20 @@ def run_health_server():
 # ==================== STARTUP NOTIFICATION ====================
 
 async def send_startup_notification():
-    try:
-        await app.send_message(
-            CHANNEL_ID,
-            f"{EMOJI['success']} **Bot Started!**\n\n"
-            f"**Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"**Status:** ✅ Online\n"
-            f"**Version:** 3.0.0"
-        )
-    except Exception as e:
-        logger.error(f"Startup notification error: {e}")
+    if CHANNEL_ID:
+        try:
+            await app.send_message(
+                CHANNEL_ID,
+                f"{EMOJI['success']} **Bot Started!**\n\n"
+                f"**Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"**Status:** ✅ Online\n"
+                f"**Version:** 3.0.0"
+            )
+            logger.info("Startup notification sent")
+        except Exception as e:
+            logger.error(f"Startup notification error: {e}")
+    else:
+        logger.info("No channel ID - skipping notification")
 
 # ==================== MAIN FUNCTION ====================
 
@@ -177,16 +179,13 @@ async def main():
     try:
         logger.info("🚀 Starting CareerWill Bot...")
         
-        # Start bot
         await app.start()
         logger.info("✅ Bot client started successfully")
         
-        # Send startup notification
         await send_startup_notification()
         
         logger.info("✅ Bot is running! Press Ctrl+C to stop.")
         
-        # Keep running
         await asyncio.Event().wait()
         
     except Exception as e:
@@ -201,11 +200,9 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        # Start health check server
         health_thread = threading.Thread(target=run_health_server, daemon=True)
         health_thread.start()
         
-        # Run the bot
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("👋 Bot stopped by user")
