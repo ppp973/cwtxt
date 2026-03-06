@@ -1,248 +1,153 @@
+
 """
-CareerWill Bot - File Helper Module
-Handles all file operations for the CareerWill Telegram Bot.
+CareerWill Bot - API Helper Module
+Handles all API calls to CareerWill servers.
 """
 
-import os
-import re
-import shutil
-import aiofiles
-import asyncio
-import logging
+import requests
+import json
 import time
-from typing import List, Optional, Dict
-from datetime import datetime
-from pathlib import Path
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Optional, Callable
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
+# API Endpoints
+BATCH_API = "https://cw-api-website.vercel.app/batch/{}"
+TOPIC_API = "https://cw-api-website.vercel.app/batch?batchid={}&topicid={}&full=true"
+VIDEO_API = "https://cw-vid-virid.vercel.app/get_video_details?name={}"
+ALL_BATCHES_API = "https://cw-api-website.vercel.app/batches"
+
 # Configuration
-DOWNLOAD_DIR = "downloads"
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-MAX_FILENAME_LENGTH = 100
-CLEANUP_AGE = 3600  # 1 hour in seconds
+MAX_WORKERS = 20
+TIMEOUT = 30
+MAX_RETRIES = 3
 
-# ==================== DIRECTORY MANAGEMENT ====================
+# Session
+session = requests.Session()
+session.headers.update({"User-Agent": "Mozilla/5.0"})
 
-def ensure_download_dir():
-    """Ensure download directory exists"""
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-    logger.info(f"📁 Download directory: {os.path.abspath(DOWNLOAD_DIR)}")
+def fetch_json(url: str, retries: int = MAX_RETRIES) -> Optional[Dict]:
+    """Fetch JSON from URL with retry mechanism"""
+    for attempt in range(retries):
+        try:
+            response = session.get(url, timeout=TIMEOUT)
+            if response.status_code == 200:
+                return response.json()
+        except Exception as e:
+            logger.error(f"Attempt {attempt+1} failed: {e}")
+            if attempt < retries - 1:
+                time.sleep(2)
+    return None
 
-def get_download_dir() -> str:
-    """Get download directory path"""
-    return os.path.abspath(DOWNLOAD_DIR)
+def get_video_url(video_id: str) -> Optional[str]:
+    """Get actual video URL from video ID"""
+    data = fetch_json(VIDEO_API.format(video_id))
+    if data and isinstance(data, dict):
+        return data.get("file_url") or (data.get("data", {}).get("link", {}).get("file_url"))
+    return None
 
-# ==================== FILENAME OPERATIONS ====================
+def get_batch_info(batch_id: str) -> Optional[Dict]:
+    """Get batch information"""
+    return fetch_json(BATCH_API.format(batch_id))
 
-def sanitize_filename(filename: str, max_length: int = MAX_FILENAME_LENGTH) -> str:
-    """
-    Remove invalid characters from filename
-    
-    Args:
-        filename: Original filename
-        max_length: Maximum length
-    
-    Returns:
-        Sanitized filename
-    """
-    # Remove invalid characters
-    filename = re.sub(r'[\\/*?:"<>|]', '', filename)
-    
-    # Replace multiple spaces with single
-    filename = re.sub(r'\s+', ' ', filename)
-    
-    # Replace spaces with underscores
-    filename = filename.replace(' ', '_')
-    
-    # Remove leading/trailing dots and spaces
-    filename = filename.strip('. ')
-    
-    # Limit length
-    if len(filename) > max_length:
-        name_part = filename[:max_length-20]
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{name_part}_{timestamp}"
-    
-    return filename
+def get_topic_details(batch_id: str, topic_id: str) -> Optional[Dict]:
+    """Get topic details"""
+    return fetch_json(TOPIC_API.format(batch_id, topic_id))
 
-def generate_filename(batch_name: str, batch_id: str, extension: str = '.txt') -> str:
-    """
-    Generate a unique filename for batch
-    
-    Args:
-        batch_name: Name of the batch
-        batch_id: Batch ID
-        extension: File extension
-    
-    Returns:
-        Generated filename
-    """
-    safe_name = sanitize_filename(batch_name)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    return f"{safe_name}_{batch_id}_{timestamp}{extension}"
+def get_all_batches() -> Optional[Dict[str, str]]:
+    """Get all available batches"""
+    return fetch_json(ALL_BATCHES_API)
 
-# ==================== FILE OPERATIONS ====================
+def process_topic(batch_id: str, topic: Dict) -> List[Dict]:
+    """Process a single topic"""
+    results = []
+    topic_id = topic.get("id")
+    topic_name = topic.get("topicName", "Unknown")
+    
+    if not topic_id:
+        return results
+    
+    topic_data = get_topic_details(batch_id, topic_id)
+    if not topic_data:
+        return results
+    
+    # Extract videos
+    for cls in topic_data.get("classes", []):
+        video_id = cls.get("video_url")
+        if video_id:
+            video_url = get_video_url(video_id)
+            if video_url:
+                results.append({
+                    "type": "drm" if video_url.endswith('.mpd') else "video",
+                    "topic": topic_name,
+                    "title": cls.get("title", ""),
+                    "url": video_url,
+                    "line": f"[{topic_name}] {cls.get('title', '')}: {video_url}"
+                })
+    
+    # Extract PDFs
+    for note in topic_data.get("notes", []):
+        pdf_url = note.get("view_url") or note.get("download_url")
+        if pdf_url and pdf_url.endswith('.pdf'):
+            results.append({
+                "type": "pdf",
+                "topic": topic_name,
+                "title": note.get("title", ""),
+                "url": pdf_url,
+                "line": f"[{topic_name}] PDF - {note.get('title', '')}: {pdf_url}"
+            })
+    
+    return results
 
-async def save_to_file(batch_name: str, batch_id: str, items: List[str]) -> Optional[str]:
-    """
-    Save extracted items to a text file
+def extract_batch(batch_id: str, progress_callback: Optional[Callable] = None):
+    """Extract all content from a batch"""
+    start_time = time.time()
+    batch = get_batch_info(batch_id)
     
-    Args:
-        batch_name: Name of the batch
-        batch_id: Batch ID
-        items: List of items to save
+    if not batch:
+        return None
     
-    Returns:
-        Path to saved file or None
-    """
-    try:
-        ensure_download_dir()
-        
-        # Generate filename
-        filename = generate_filename(batch_name, batch_id)
-        filepath = os.path.join(DOWNLOAD_DIR, filename)
-        
-        # Write to file
-        async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+    batch_name = batch.get("batch_name", f"Batch_{batch_id}")
+    topics = batch.get("topics", [])
+    
+    all_items = []
+    videos = pdfs = drm = 0
+    
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(process_topic, batch_id, t) for t in topics]
+        for i, future in enumerate(as_completed(futures)):
+            items = future.result()
+            all_items.extend(items)
             for item in items:
-                await f.write(item + '\n')
-        
-        logger.info(f"✅ File saved: {filename} ({len(items)} items)")
-        return filepath
-        
-    except Exception as e:
-        logger.error(f"File save error: {str(e)}")
-        return None
-
-async def read_from_file(filepath: str) -> Optional[List[str]]:
-    """
-    Read lines from a text file
+                if item['type'] == 'video': videos += 1
+                elif item['type'] == 'pdf': pdfs += 1
+                else: drm += 1
+            if progress_callback:
+                progress_callback(f"📊 Progress: {i+1}/{len(topics)} topics")
     
-    Args:
-        filepath: Path to file
+    class Stats:
+        pass
+    stats = Stats()
+    stats.batch_id = batch_id
+    stats.batch_name = batch_name
+    stats.total_items = len(all_items)
+    stats.videos = videos
+    stats.pdfs = pdfs
+    stats.drm_count = drm
+    stats.time_taken = time.time() - start_time
+    stats.items = all_items
+    stats.topics_processed = len(topics)
+    stats.success_rate = 100
     
-    Returns:
-        List of lines or None
-    """
-    try:
-        if not os.path.exists(filepath):
-            logger.error(f"File not found: {filepath}")
-            return None
-        
-        async with aiofiles.open(filepath, 'r', encoding='utf-8') as f:
-            content = await f.read()
-            lines = content.split('\n')
-            lines = [line for line in lines if line.strip()]
-        
-        logger.info(f"📖 Read {len(lines)} lines from {os.path.basename(filepath)}")
-        return lines
-        
-    except Exception as e:
-        logger.error(f"File read error: {str(e)}")
-        return None
+    return stats
 
-async def cleanup_file(filepath: str) -> bool:
-    """
-    Delete a file
-    
-    Args:
-        filepath: Path to file
-    
-    Returns:
-        True if deleted successfully
-    """
-    try:
-        if os.path.exists(filepath):
-            os.remove(filepath)
-            logger.info(f"🗑️ Deleted: {os.path.basename(filepath)}")
-            return True
-        return False
-    except Exception as e:
-        logger.error(f"File delete error: {str(e)}")
-        return False
+def validate_batch_id(batch_id: str) -> bool:
+    """Validate if batch ID exists"""
+    return get_batch_info(batch_id) is not None
 
-# ==================== FILE VALIDATION ====================
-
-def get_file_size(filepath: str) -> int:
-    """Get file size in bytes"""
-    try:
-        if os.path.exists(filepath):
-            return os.path.getsize(filepath)
-        return 0
-    except Exception as e:
-        logger.error(f"File size error: {str(e)}")
-        return 0
-
-def is_valid_txt(filepath: str) -> bool:
-    """Check if file is valid text file"""
-    try:
-        if not os.path.exists(filepath):
-            return False
-        
-        if not filepath.endswith('.txt'):
-            return False
-        
-        size = get_file_size(filepath)
-        if size > MAX_FILE_SIZE:
-            logger.warning(f"File too large: {size} bytes")
-            return False
-        
-        return True
-    except Exception as e:
-        logger.error(f"File validation error: {str(e)}")
-        return False
-
-# ==================== CLEANUP ====================
-
-def cleanup_old_files(age_seconds: int = CLEANUP_AGE) -> int:
-    """Delete old files from download directory"""
-    try:
-        now = time.time()
-        deleted = 0
-        
-        if not os.path.exists(DOWNLOAD_DIR):
-            return 0
-        
-        for filename in os.listdir(DOWNLOAD_DIR):
-            filepath = os.path.join(DOWNLOAD_DIR, filename)
-            
-            if os.path.isfile(filepath):
-                file_age = now - os.path.getmtime(filepath)
-                
-                if file_age > age_seconds:
-                    os.remove(filepath)
-                    deleted += 1
-                    logger.debug(f"🗑️ Deleted old file: {filename}")
-        
-        if deleted > 0:
-            logger.info(f"🧹 Cleaned up {deleted} old files")
-        
-        return deleted
-        
-    except Exception as e:
-        logger.error(f"Cleanup error: {str(e)}")
-        return 0
-
-# ==================== INITIALIZATION ====================
-
-# Create download directory on import
-ensure_download_dir()
-
-# Clean up old files on import
-cleanup_old_files()
-
-# Export all functions
 __all__ = [
-    'sanitize_filename',
-    'save_to_file',
-    'read_from_file',
-    'cleanup_file',
-    'ensure_download_dir',
-    'get_download_dir',
-    'generate_filename',
-    'get_file_size',
-    'is_valid_txt',
-    'cleanup_old_files'
+    'fetch_json', 'get_video_url', 'get_batch_info', 'get_topic_details',
+    'get_all_batches', 'process_topic', 'extract_batch', 'validate_batch_id'
 ]
