@@ -6,7 +6,7 @@ Configuration file for CareerWill Premium Bot
 # ==================== TELEGRAM API CREDENTIALS ====================
 API_ID = 21503125
 API_HASH = "bab9855c442e9e4e87f413cb5b9dc3f9"
-BOT_TOKEN = "8768725493:AAFDhnWucAWD9Tl9djbRtOr6v5bUUOFmCQY"
+BOT_TOKEN = "8767495924:AAGwRxO23fTqkb3xhA7Zait_fVZ-rtBxgys"
 CHANNEL_ID = -1003724248856
 
 # ==================== API ENDPOINTS ====================
