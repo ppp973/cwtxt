@@ -1,21 +1,37 @@
+#!/usr/bin/env python3
+"""
+CareerWill Premium Bot - Main Entry Point
+"""
+
 import os
-import asyncio
+import sys
 import logging
+import asyncio
+from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from config import API_ID, API_HASH, BOT_TOKEN
+
+# Add to path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import handlers
-from handlers.start_handler import start_command
-from handlers.help_handler import help_command
-from handlers.about_handler import about_command
-from handlers.extract_handler import extract_command
-from handlers.batches_handler import all_batches_command, batches_callback
+from handlers import (
+    start_command,
+    help_command,
+    about_command,
+    extract_command,
+    all_batches_command,
+    batches_callback
+)
+from config import API_ID, API_HASH, BOT_TOKEN, CHANNEL_ID
 
-# Setup logging
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -27,44 +43,65 @@ app = Client(
     "careerwill_bot",
     api_id=API_ID,
     api_hash=API_HASH,
-    bot_token=BOT_TOKEN
+    bot_token=BOT_TOKEN,
+    workers=20
 )
 
-# Command handlers
+# ==================== COMMAND HANDLERS ====================
+
 @app.on_message(filters.command(["start"]))
-async def start(client, message):
-    await start_command(client, message)
+async def start(client: Client, message: Message):
+    try:
+        await start_command(client, message)
+        logger.info(f"User {message.from_user.id} started bot")
+    except Exception as e:
+        logger.error(f"Start error: {e}")
+        await message.reply_text("❌ Error occurred")
 
 @app.on_message(filters.command(["help"]))
-async def help(client, message):
-    await help_command(client, message)
+async def help(client: Client, message: Message):
+    try:
+        await help_command(client, message)
+    except Exception as e:
+        logger.error(f"Help error: {e}")
+        await message.reply_text("❌ Error occurred")
 
 @app.on_message(filters.command(["about"]))
-async def about(client, message):
-    await about_command(client, message)
+async def about(client: Client, message: Message):
+    try:
+        await about_command(client, message)
+    except Exception as e:
+        logger.error(f"About error: {e}")
+        await message.reply_text("❌ Error occurred")
 
 @app.on_message(filters.command(["cwextractfree"]))
-async def extract(client, message):
-    await extract_command(client, message)
+async def extract(client: Client, message: Message):
+    try:
+        await extract_command(client, message)
+    except Exception as e:
+        logger.error(f"Extract error: {e}")
+        await message.reply_text("❌ Error occurred")
 
 @app.on_message(filters.command(["allbatches"]))
-async def all_batches(client, message):
-    await all_batches_command(client, message)
+async def all_batches(client: Client, message: Message):
+    try:
+        await all_batches_command(client, message)
+    except Exception as e:
+        logger.error(f"Batches error: {e}")
+        await message.reply_text("❌ Error occurred")
 
-# Callback query handler
+# ==================== CALLBACK HANDLERS ====================
+
 @app.on_callback_query()
-async def handle_callback(client, callback_query):
-    await batches_callback(client, callback_query)
+async def callback_handler(client: Client, callback_query):
+    try:
+        await batches_callback(client, callback_query)
+    except Exception as e:
+        logger.error(f"Callback error: {e}")
+        await callback_query.answer("❌ Error", show_alert=True)
 
-# Error handler
-@app.on_message()
-async def error_handler(client, message):
-    if not message.text.startswith('/'):
-        await message.reply_text(
-            "**❌ Unknown Command**\n\n"
-            "Use /start to see available commands."
-        )
+# ==================== START BOT ====================
 
 if __name__ == "__main__":
-    logger.info("🚀 CareerWill Premium Bot Started!")
+    logger.info("🚀 Starting CareerWill Bot...")
     app.run()
