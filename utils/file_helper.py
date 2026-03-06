@@ -1,50 +1,62 @@
+"""
+CareerWill Bot - File Helper Module
+Handles all file operations.
+"""
+
 import os
 import re
 import aiofiles
 import logging
 from datetime import datetime
-from config import DOWNLOAD_DIR
 
 logger = logging.getLogger(__name__)
 
-def sanitize_filename(filename, max_length=100):
+DOWNLOAD_DIR = "downloads"
+
+def ensure_download_dir():
+    """Ensure download directory exists"""
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+def sanitize_filename(filename: str) -> str:
     """Remove invalid characters from filename"""
-    # Remove invalid characters
-    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
-    # Replace spaces with underscores
-    filename = filename.replace(" ", "_")
-    # Limit length
-    if len(filename) > max_length:
-        filename = filename[:max_length]
-    return filename
+    filename = re.sub(r'[\\/*?:"<>|]', '', filename)
+    return filename.strip().replace(' ', '_')[:100]
 
-async def save_to_file(batch_name, batch_id, items):
-    """Save extracted items to a text file"""
-    try:
-        # Create downloads directory if not exists
-        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-        
-        # Generate filename
-        safe_name = sanitize_filename(batch_name)
-        filename = f"{DOWNLOAD_DIR}/{safe_name}_{batch_id}.txt"
-        
-        # Write to file
-        async with aiofiles.open(filename, 'w', encoding='utf-8') as f:
-            for item in items:
-                await f.write(item + '\n')
-        
-        logger.info(f"✅ File saved: {filename}")
-        return filename
-        
-    except Exception as e:
-        logger.error(f"File save error: {str(e)}")
-        return None
+def generate_filename(batch_name: str, batch_id: str) -> str:
+    """Generate a unique filename"""
+    safe_name = sanitize_filename(batch_name)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return f"{safe_name}_{batch_id}_{timestamp}.txt"
 
-async def cleanup_file(filepath):
-    """Delete file after sending"""
-    try:
-        if os.path.exists(filepath):
-            os.remove(filepath)
-            logger.info(f"🗑️ Cleaned up: {filepath}")
-    except Exception as e:
-        logger.error(f"Cleanup error: {str(e)}")
+async def save_to_file(batch_name: str, batch_id: str, items: list) -> str:
+    """Save items to a text file"""
+    ensure_download_dir()
+    filename = generate_filename(batch_name, batch_id)
+    filepath = os.path.join(DOWNLOAD_DIR, filename)
+    
+    async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+        for item in items:
+            await f.write(item + '\n')
+    
+    logger.info(f"✅ Saved: {filename}")
+    return filepath
+
+async def read_from_file(filepath: str) -> list:
+    """Read lines from a text file"""
+    if not os.path.exists(filepath):
+        return []
+    
+    async with aiofiles.open(filepath, 'r', encoding='utf-8') as f:
+        content = await f.read()
+        return [line for line in content.split('\n') if line.strip()]
+
+async def cleanup_file(filepath: str):
+    """Delete a file"""
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        logger.info(f"🗑️ Deleted: {os.path.basename(filepath)}")
+
+__all__ = [
+    'ensure_download_dir', 'sanitize_filename', 'generate_filename',
+    'save_to_file', 'read_from_file', 'cleanup_file'
+]
