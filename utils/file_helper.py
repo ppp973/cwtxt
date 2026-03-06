@@ -1,17 +1,11 @@
-"""
-CareerWill Bot - File Helper Module
-Handles all file operations.
-"""
-
 import os
 import re
 import aiofiles
 import logging
 from datetime import datetime
+from config import DOWNLOAD_DIR, MAX_FILENAME_LENGTH
 
 logger = logging.getLogger(__name__)
-
-DOWNLOAD_DIR = "downloads"
 
 def ensure_download_dir():
     """Ensure download directory exists"""
@@ -19,8 +13,14 @@ def ensure_download_dir():
 
 def sanitize_filename(filename: str) -> str:
     """Remove invalid characters from filename"""
+    # Remove invalid characters
     filename = re.sub(r'[\\/*?:"<>|]', '', filename)
-    return filename.strip().replace(' ', '_')[:100]
+    # Replace spaces with underscores
+    filename = filename.replace(' ', '_')
+    # Remove extra underscores
+    filename = re.sub(r'_+', '_', filename)
+    # Strip and limit length
+    return filename.strip('_')[:MAX_FILENAME_LENGTH]
 
 def generate_filename(batch_name: str, batch_id: str) -> str:
     """Generate a unique filename"""
@@ -38,7 +38,7 @@ async def save_to_file(batch_name: str, batch_id: str, items: list) -> str:
         for item in items:
             await f.write(item + '\n')
     
-    logger.info(f"✅ Saved: {filename}")
+    logger.info(f"✅ Saved: {filename} ({len(items)} items)")
     return filepath
 
 async def read_from_file(filepath: str) -> list:
@@ -52,11 +52,12 @@ async def read_from_file(filepath: str) -> list:
 
 async def cleanup_file(filepath: str):
     """Delete a file"""
-    if os.path.exists(filepath):
-        os.remove(filepath)
-        logger.info(f"🗑️ Deleted: {os.path.basename(filepath)}")
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            logger.info(f"🗑️ Deleted: {os.path.basename(filepath)}")
+    except Exception as e:
+        logger.error(f"Cleanup error: {e}")
 
-__all__ = [
-    'ensure_download_dir', 'sanitize_filename', 'generate_filename',
-    'save_to_file', 'read_from_file', 'cleanup_file'
-]
+# Initialize
+ensure_download_dir()
