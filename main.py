@@ -2,7 +2,7 @@
 """
 CareerWill Premium Bot - Main Entry Point
 Telegram Bot for extracting CareerWill course content
-Fully fixed version with proper text handling and no 'listen' attribute errors
+COMPLETE FINAL VERSION - All errors fixed
 """
 
 import os
@@ -12,26 +12,26 @@ import asyncio
 from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 
 # Add to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import handlers
-from handlers import (
-    start_command,
-    help_command,
-    about_command,
-    extract_command,
-    all_batches_command,
-    batches_callback
-)
-
-# Import text handler from extract_handler
-from handlers.extract_handler import handle_batch_input
-
 # Import config
 from config import API_ID, API_HASH, BOT_TOKEN, CHANNEL_ID, EMOJI
+
+# Import handlers
+from handlers.start_handler import start_command
+from handlers.help_handler import help_command
+from handlers.about_handler import about_command
+from handlers.batches_handler import all_batches_command, batches_callback
+
+# Import extract handler functions
+from handlers.extract_handler import (
+    extract_command,
+    get_user_state,
+    handle_batch_input,
+    clear_user_state
+)
 
 # Configure logging
 logging.basicConfig(
@@ -55,24 +55,6 @@ app = Client(
     workers=20,
     workdir="./sessions"
 )
-
-# ==================== USER STATE MANAGEMENT ====================
-
-# Store user states for batch input
-user_states = {}
-
-def get_user_state(user_id):
-    """Get user state"""
-    return user_states.get(user_id, {})
-
-def set_user_state(user_id, state):
-    """Set user state"""
-    user_states[user_id] = state
-
-def clear_user_state(user_id):
-    """Clear user state"""
-    if user_id in user_states:
-        del user_states[user_id]
 
 # ==================== COMMAND HANDLERS ====================
 
@@ -108,26 +90,7 @@ async def about(client: Client, message: Message):
 async def extract(client: Client, message: Message):
     """Handle /cwextractfree command"""
     try:
-        user_id = message.from_user.id
-        
-        # Set user state to waiting for batch input
-        status_msg = await message.reply_text(
-            f"{EMOJI['batch']} **CareerWill Extractor**\n\n"
-            f"{EMOJI['info']} **Please enter Batch ID(s):**\n"
-            f"Example: `1377`\n"
-            f"Multiple: `1377 1840 2034`\n\n"
-            f"{EMOJI['time']} *You have 2 minutes*"
-        )
-        
-        # Store user state
-        set_user_state(user_id, {
-            "step": "waiting_for_batch",
-            "status_msg_id": status_msg.id,
-            "chat_id": message.chat.id
-        })
-        
-        logger.info(f"User {user_id} started extraction")
-        
+        await extract_command(client, message)
     except Exception as e:
         logger.error(f"Extract error: {e}")
         await message.reply_text(f"{EMOJI['error']} **Error occurred**")
@@ -148,10 +111,13 @@ async def text_handler(client: Client, message: Message):
     """Handle text messages (for batch input)"""
     try:
         user_id = message.from_user.id
+        
+        # Get user state
         state = get_user_state(user_id)
         
         # Check if user is waiting for batch input
-        if state.get("step") == "waiting_for_batch":
+        if state and state.get("step") == "waiting_for_batch":
+            logger.info(f"Processing batch input from user {user_id}")
             await handle_batch_input(client, message, state)
             clear_user_state(user_id)
         else:
@@ -200,6 +166,7 @@ async def send_startup_notification():
             f"**Workers:** 20\n"
             f"**Version:** 3.0.0"
         )
+        logger.info("Startup notification sent to channel")
     except Exception as e:
         logger.error(f"Startup notification error: {e}")
 
@@ -215,6 +182,7 @@ async def main():
         
         # Start bot
         await app.start()
+        logger.info("✅ Bot client started successfully")
         
         # Send startup notification
         await send_startup_notification()
@@ -228,12 +196,43 @@ async def main():
         logger.error(f"Startup error: {e}")
         raise
     finally:
+        logger.info("🛑 Stopping bot...")
         await app.stop()
+        logger.info("✅ Bot stopped")
+
+# ==================== HEALTH CHECK ENDPOINT (for Render) ====================
+
+# This is a simple HTTP server to keep Render happy
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b'Bot is running!')
+    
+    def log_message(self, format, *args):
+        # Suppress log messages
+        pass
+
+def run_health_server():
+    """Run a simple HTTP server for health checks"""
+    port = int(os.environ.get('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    logger.info(f"Health check server running on port {port}")
+    server.serve_forever()
 
 # ==================== ENTRY POINT ====================
 
 if __name__ == "__main__":
     try:
+        # Start health check server in a separate thread
+        health_thread = threading.Thread(target=run_health_server, daemon=True)
+        health_thread.start()
+        
+        # Run the bot
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("👋 Bot stopped by user")
