@@ -1,9 +1,8 @@
-# Render Configuration
 services:
   - type: worker
     name: careerwill-bot
     runtime: python
-    repo: https://github.com/ppp973/iiiiiiiiiiiiiiiiiiiiiiiiiq
+    repo: https://github.com/ppp973/cwtxt
     branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
@@ -16,3 +15,5 @@ services:
         value: 8768725493:AAFDhnWucAWD9Tl9djbRtOr6v5bUUOFmCQY
       - key: CHANNEL_ID
         value: -1003724248856
+    plan: free
+    autoDeploy: true
