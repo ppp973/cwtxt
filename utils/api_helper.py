@@ -4,45 +4,72 @@ import time
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Callable, Any
-from config import BATCH_API, TOPIC_API, VIDEO_API, ALL_BATCHES_API, MAX_WORKERS, TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from config import MAX_WORKERS, TIMEOUT, MAX_RETRIES, RETRY_DELAY
 
 logger = logging.getLogger(__name__)
+
+# ==================== UPDATED API ENDPOINTS ====================
+# Try different endpoints if one fails
+BATCH_API_ENDPOINTS = [
+    "https://cw-api-website.vercel.app/batch/{}",
+    "https://api.careerwill.com/batch/{}",
+    "https://cw-api.render.com/batch/{}"
+]
+
+TOPIC_API_ENDPOINTS = [
+    "https://cw-api-website.vercel.app/batch?batchid={}&topicid={}&full=true",
+    "https://api.careerwill.com/topic?batch={}&topic={}",
+    "https://cw-api.render.com/details?batch={}&topic={}"
+]
+
+VIDEO_API_ENDPOINTS = [
+    "https://cw-vid-virid.vercel.app/get_video_details?name={}",
+    "https://api.careerwill.com/video/{}",
+    "https://cw-vid.render.com/details?video={}"
+]
+
+ALL_BATCHES_ENDPOINTS = [
+    "https://cw-api-website.vercel.app/batches",
+    "https://api.careerwill.com/batches",
+    "https://cw-api.render.com/all-batches"
+]
 
 # Session for connection reuse
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
 
-def fetch_json(url: str, retries: int = MAX_RETRIES) -> Optional[Dict]:
-    """Fetch JSON from URL with retry mechanism"""
-    for attempt in range(retries):
-        try:
-            logger.debug(f"Fetching: {url[:100]}...")
-            response = session.get(url, timeout=TIMEOUT)
+def fetch_json(urls: list, retries: int = MAX_RETRIES) -> Optional[Dict]:
+    """Try multiple URLs for same resource"""
+    for url in urls:
+        for attempt in range(retries):
+            try:
+                logger.debug(f"Trying: {url[:100]}...")
+                response = session.get(url, timeout=TIMEOUT)
+                
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.warning(f"HTTP {response.status_code} for {url[:50]}")
+                    
+                if response.status_code == 429:  # Rate limit
+                    time.sleep(RETRY_DELAY * (attempt + 1) * 2)
+                    
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout for {url[:50]}")
+            except requests.exceptions.ConnectionError:
+                logger.warning(f"Connection error for {url[:50]}")
+            except Exception as e:
+                logger.error(f"Error: {e}")
             
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logger.warning(f"HTTP {response.status_code}")
-                
-            if response.status_code == 429:  # Rate limit
-                time.sleep(RETRY_DELAY * (attempt + 1) * 2)
-                
-        except requests.exceptions.Timeout:
-            logger.warning(f"Timeout attempt {attempt+1}")
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection error attempt {attempt+1}")
-        except Exception as e:
-            logger.error(f"Error: {e}")
-        
-        if attempt < retries - 1:
-            time.sleep(RETRY_DELAY * (attempt + 1))
+            if attempt < retries - 1:
+                time.sleep(RETRY_DELAY * (attempt + 1))
     
     return None
 
 def get_video_url(video_id: str) -> Optional[str]:
     """Get actual video URL from video ID"""
     try:
-        data = fetch_json(VIDEO_API.format(video_id))
+        data = fetch_json([api.format(video_id) for api in VIDEO_API_ENDPOINTS])
         if not data:
             return None
         
@@ -66,15 +93,15 @@ def get_video_url(video_id: str) -> Optional[str]:
 
 def get_batch_info(batch_id: str) -> Optional[Dict]:
     """Get batch information"""
-    return fetch_json(BATCH_API.format(batch_id))
+    return fetch_json([api.format(batch_id) for api in BATCH_API_ENDPOINTS])
 
 def get_topic_details(batch_id: str, topic_id: str) -> Optional[Dict]:
     """Get topic details"""
-    return fetch_json(TOPIC_API.format(batch_id, topic_id))
+    return fetch_json([api.format(batch_id, topic_id) for api in TOPIC_API_ENDPOINTS])
 
 def get_all_batches() -> Optional[Dict[str, str]]:
     """Get all available batches"""
-    return fetch_json(ALL_BATCHES_API)
+    return fetch_json(ALL_BATCHES_ENDPOINTS)
 
 def process_topic(batch_id: str, topic: Dict) -> List[Dict]:
     """Process a single topic and extract content"""
@@ -128,6 +155,7 @@ def extract_batch(batch_id: str, progress_callback: Optional[Callable] = None) -
     
     batch = get_batch_info(batch_id)
     if not batch:
+        logger.error(f"Batch {batch_id} not found")
         return None
     
     batch_name = batch.get("batch_name") or batch.get("name") or f"Batch_{batch_id}"
@@ -152,6 +180,7 @@ def extract_batch(batch_id: str, progress_callback: Optional[Callable] = None) -
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = [executor.submit(process_topic, batch_id, t) for t in topics]
         completed = 0
+        total = len(topics)
         
         for future in as_completed(futures):
             completed += 1
@@ -166,11 +195,11 @@ def extract_batch(batch_id: str, progress_callback: Optional[Callable] = None) -
                 else:
                     drm += 1
             
-            if progress_callback and len(topics) > 0:
-                percent = (completed / len(topics)) * 100
+            if progress_callback and total > 0:
+                percent = (completed / total) * 100
                 bar = '█' * int(percent/5) + '░' * (20 - int(percent/5))
                 progress_callback(
-                    f"{videos} videos, {pdfs} PDFs\n"
+                    f"{EMOJI['video']} Videos: {videos} | {EMOJI['pdf']} PDFs: {pdfs}\n"
                     f"Progress: {bar} {percent:.1f}%"
                 )
     
