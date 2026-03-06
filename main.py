@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-CareerWill Premium Bot - Main Entry Point
-FIXED VERSION - Guaranteed to work
+CareerWill Bot - DEBUG VERSION
+This version logs EVERYTHING to find the issue
 """
 
 import os
@@ -14,37 +14,50 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pyrogram.enums import ParseMode
+from pyrogram.errors import *
 
-# Add to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Import config
-from config import API_ID, API_HASH, BOT_TOKEN, CHANNEL_ID
-
-# Configure logging
+# Configure logging to be VERY verbose
 logging.basicConfig(
-    level=logging.DEBUG,  # DEBUG level for more info
+    level=logging.DEBUG,  # DEBUG level shows everything
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler()
+        logging.StreamHandler(),
+        logging.FileHandler('bot_debug.log')
     ]
 )
 logger = logging.getLogger(__name__)
 
-# Create necessary directories
+# Set pyrogram logging to DEBUG
+logging.getLogger("pyrogram").setLevel(logging.DEBUG)
+logging.getLogger("pyrogram.client").setLevel(logging.DEBUG)
+logging.getLogger("pyrogram.session").setLevel(logging.DEBUG)
+logging.getLogger("pyrogram.connection").setLevel(logging.DEBUG)
+
+logger.info("=" * 60)
+logger.info("🚀 BOT STARTING IN DEBUG MODE")
+logger.info("=" * 60)
+
+# Configuration
+API_ID = 21503125
+API_HASH = "bab9855c442e9e4e87f413cb5b9dc3f9"
+BOT_TOKEN = "8768725493:AAFDhnWucAWD9Tl9djbRtOr6v5bUUOFmCQY"
+
+logger.info(f"📊 API ID: {API_ID}")
+logger.info(f"📊 Bot Token: {BOT_TOKEN[:10]}...")
+
+# Create directories
 DOWNLOAD_DIR = "downloads"
 SESSION_DIR = "/tmp/careerwill_sessions"
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(SESSION_DIR, exist_ok=True)
-
 os.chmod(DOWNLOAD_DIR, 0o777)
 os.chmod(SESSION_DIR, 0o777)
 
-logger.info(f"📁 Download directory: {os.path.abspath(DOWNLOAD_DIR)}")
-logger.info(f"📁 Session directory: {SESSION_DIR}")
+logger.info(f"📁 Download dir: {DOWNLOAD_DIR}")
+logger.info(f"📁 Session dir: {SESSION_DIR}")
 
-# Initialize bot with ALL required parameters
+# Initialize bot
 app = Client(
     name="careerwill_bot",
     api_id=API_ID,
@@ -52,125 +65,85 @@ app = Client(
     bot_token=BOT_TOKEN,
     workers=20,
     workdir=SESSION_DIR,
-    parse_mode=ParseMode.MARKDOWN,
-    sleep_threshold=60,
-    max_concurrent_transmissions=10
+    parse_mode=ParseMode.MARKDOWN
 )
+
+logger.info("✅ Bot client created")
 
 # ==================== COMMAND HANDLERS ====================
 
 @app.on_message(filters.command(["start"]))
 async def start_command(client: Client, message: Message):
+    """START command handler"""
     try:
-        logger.info(f"✅ Start command received from user {message.from_user.id}")
+        user_id = message.from_user.id
+        user_name = message.from_user.first_name
+        logger.info(f"✅ START command received from user {user_id} ({user_name})")
+        logger.info(f"📨 Message details: {message}")
         
-        welcome_text = """
-🔵 **Welcome to CareerWill Premium Bot** 🔵
-
-━━━━━━━━━━━━━━━━━━━━━━
-**📋 Available Commands:**
-
-🔵 **/start** - Show this message
-ℹ️ **/help** - Help guide
-📚 **/about** - Bot info
-🎥 **/cwextractfree** - Extract batch
-📚 **/allbatches** - View all batches
-
-━━━━━━━━━━━━━━━━━━━━━━
-**⚡ Bot is now LIVE!**
-"""
-        
-        await message.reply_text(welcome_text)
-        logger.info(f"✅ Replied to user {message.from_user.id}")
+        response = "🎉 **Bot is working!** 🎉\n\nYou sent /start command"
+        await message.reply_text(response)
+        logger.info(f"✅ Replied to user {user_id}")
         
     except Exception as e:
-        logger.error(f"❌ Start command error: {e}", exc_info=True)
-        await message.reply_text("❌ Error occurred. Please try again.")
+        logger.error(f"❌ Error in start_command: {e}", exc_info=True)
 
 @app.on_message(filters.command(["help"]))
 async def help_command(client: Client, message: Message):
+    """HELP command handler"""
     try:
-        help_text = """
-ℹ️ **CareerWill Bot Help Guide** ℹ️
-
-━━━━━━━━━━━━━━━━━━━━━━
-**📥 /cwextractfree**
-Extract any batch:
-1. Send `/cwextractfree`
-2. Enter Batch ID (e.g., `1377`)
-3. Get .txt file with all links
-
-**📚 /allbatches**
-View all batches with clickable IDs
-
-**🎯 Tips:**
-- Multiple IDs: `1377 1840 2034`
-- 20 parallel workers for speed
-
-━━━━━━━━━━━━━━━━━━━━━━
-**⚡ @sdfvghhghhbnm_bot**
-"""
-        await message.reply_text(help_text)
+        user_id = message.from_user.id
+        logger.info(f"✅ HELP command from user {user_id}")
+        await message.reply_text("Help command received! Bot is working.")
     except Exception as e:
-        logger.error(f"Help error: {e}")
+        logger.error(f"❌ Help error: {e}")
 
 @app.on_message(filters.command(["about"]))
 async def about_command(client: Client, message: Message):
+    """ABOUT command handler"""
     try:
-        about_text = """
-🔵 **About CareerWill Bot** 🔵
-
-━━━━━━━━━━━━━━━━━━━━━━
-**Version:** 3.0.0
-**Language:** Python 3.10
-**Framework:** Pyrogram
-**Developer:** @Ayushxsdy
-
-**Features:**
-✓ 20 parallel workers
-✓ Live progress tracking
-✓ DRM detection
-✓ Multiple batch support
-
-━━━━━━━━━━━━━━━━━━━━━━
-**⚡ Made with ❤️**
-"""
-        await message.reply_text(about_text)
+        user_id = message.from_user.id
+        logger.info(f"✅ ABOUT command from user {user_id}")
+        await message.reply_text("About command received! Bot is working.")
     except Exception as e:
-        logger.error(f"About error: {e}")
+        logger.error(f"❌ About error: {e}")
 
 @app.on_message(filters.command(["cwextractfree"]))
 async def extract_command(client: Client, message: Message):
+    """EXTRACT command handler"""
     try:
-        await message.reply_text(
-            "📚 **CareerWill Extractor**\n\n"
-            "ℹ️ **Please enter Batch ID(s):**\n"
-            "Example: `1377`\n"
-            "Multiple: `1377 1840 2034`"
-        )
-        logger.info(f"Extract command from user {message.from_user.id}")
+        user_id = message.from_user.id
+        logger.info(f"✅ EXTRACT command from user {user_id}")
+        await message.reply_text("Extract command received! Bot is working.")
     except Exception as e:
-        logger.error(f"Extract error: {e}")
+        logger.error(f"❌ Extract error: {e}")
 
 @app.on_message(filters.command(["allbatches"]))
-async def all_batches_command(client: Client, message: Message):
+async def batches_command(client: Client, message: Message):
+    """BATCHES command handler"""
     try:
-        await message.reply_text("📚 **Fetching batches...**")
-        # Simple response for now
-        await message.reply_text("✅ **Batches feature coming soon!**")
+        user_id = message.from_user.id
+        logger.info(f"✅ BATCHES command from user {user_id}")
+        await message.reply_text("Batches command received! Bot is working.")
     except Exception as e:
-        logger.error(f"Batches error: {e}")
+        logger.error(f"❌ Batches error: {e}")
 
-# ==================== ECHO HANDLER FOR TESTING ====================
+# ==================== CATCH ALL HANDLER ====================
 
-@app.on_message(filters.text & ~filters.command(["start", "help", "about", "cwextractfree", "allbatches"]))
-async def echo_handler(client: Client, message: Message):
-    """Simple echo handler to test if bot is working"""
+@app.on_message()
+async def catch_all(client: Client, message: Message):
+    """Catch ALL messages (for debugging)"""
     try:
-        logger.info(f"📨 Received text from user {message.from_user.id}: {message.text[:50]}")
-        await message.reply_text(f"✅ **Received:** {message.text}")
+        user_id = message.from_user.id
+        text = message.text if message.text else "[NO TEXT]"
+        logger.info(f"📨 GOT MESSAGE from user {user_id}: {text}")
+        
+        # Always reply to any message
+        await message.reply_text(f"✅ **Message received!**\n\nYou said: {text}")
+        logger.info(f"✅ Replied to user {user_id}")
+        
     except Exception as e:
-        logger.error(f"Echo error: {e}")
+        logger.error(f"❌ Error in catch_all: {e}", exc_info=True)
 
 # ==================== HEALTH CHECK SERVER ====================
 
@@ -179,7 +152,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b'CareerWill Bot is running! Status: Online')
+        self.wfile.write(b'Bot is running!')
     
     def log_message(self, format, *args):
         pass
@@ -187,42 +160,48 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 def run_health_server():
     port = int(os.environ.get('PORT', 10000))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    logger.info(f"✅ Health check server running on port {port}")
+    logger.info(f"✅ Health check server on port {port}")
     server.serve_forever()
 
 # ==================== MAIN FUNCTION ====================
 
 async def main():
     try:
-        logger.info("🚀 Starting CareerWill Bot...")
-        logger.info(f"📊 API ID: {API_ID}")
-        logger.info(f"📊 Bot Token: {BOT_TOKEN[:10]}...")
+        logger.info("=" * 60)
+        logger.info("🚀 STARTING BOT...")
+        logger.info("=" * 60)
         
         # Start bot
+        logger.info("⏳ Calling app.start()...")
         await app.start()
-        logger.info("✅ Bot client started successfully")
+        logger.info("✅ app.start() completed")
         
         # Get bot info
+        logger.info("⏳ Getting bot info...")
         bot_info = await app.get_me()
-        logger.info(f"✅ Bot username: @{bot_info.username}")
-        logger.info(f"✅ Bot is ready to receive messages!")
+        logger.info(f"✅ Bot info retrieved: @{bot_info.username} (ID: {bot_info.id})")
         
-        # Send startup message to yourself (optional)
+        # Send startup message
         try:
+            logger.info("⏳ Sending startup message...")
             await app.send_message(
-                CHANNEL_ID if CHANNEL_ID else 8033638335,  # Your user ID
-                "🚀 **Bot is now LIVE and ready to serve!**"
+                chat_id=8033638335,  # Your user ID
+                text="🚀 **Bot is now LIVE and ready to serve!**"
             )
-        except:
-            pass
+            logger.info("✅ Startup message sent")
+        except Exception as e:
+            logger.error(f"❌ Could not send startup message: {e}")
         
-        logger.info("✅ Bot is running! Press Ctrl+C to stop.")
+        logger.info("=" * 60)
+        logger.info("✅ BOT IS RUNNING AND READY TO RECEIVE MESSAGES!")
+        logger.info("=" * 60)
         
         # Keep running
-        await asyncio.Event().wait()
+        while True:
+            await asyncio.sleep(1)
         
     except Exception as e:
-        logger.error(f"❌ Startup error: {e}", exc_info=True)
+        logger.error(f"❌ FATAL ERROR: {e}", exc_info=True)
         raise
     finally:
         logger.info("🛑 Stopping bot...")
