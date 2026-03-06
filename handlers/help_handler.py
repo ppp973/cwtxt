@@ -1,9 +1,12 @@
-from pyrogram import filters
+"""
+Help command handler for CareerWill Bot
+"""
+
 from pyrogram.types import Message
 from config import PREMIUM_COLORS as pc
 
 async def help_command(client, message: Message):
-    """Handle /help command"""
+    """Handle /help command with premium UI"""
     
     help_text = f"""
 {pc['info']} **CareerWill Extractor - Complete Guide** {pc['info']}
