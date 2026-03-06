@@ -1,7 +1,7 @@
 import asyncio
 import time
 from datetime import datetime
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import filters
 from utils.api_helper import extract_batch, validate_batch_id
 from utils.file_helper import save_to_file, cleanup_file
@@ -10,24 +10,38 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Store user states
+user_states = {}
+
 async def extract_command(client, message: Message):
+    user_id = message.from_user.id
+    user_states[user_id] = {"step": "waiting_for_batch"}
+    
     status = await message.reply_text(
         f"{EMOJI['batch']} **CareerWill Extractor**\n\n"
-        f"{EMOJI['info']} **Enter Batch ID:**\n"
-        f"Example: `1377`\nMultiple: `1377 1840 2034`"
+        f"{EMOJI['info']} **Please enter Batch ID(s):**\n"
+        f"Example: `1377`\n"
+        f"Multiple: `1377 1840 2034`\n\n"
+        f"{EMOJI['time']} *You have 2 minutes*"
     )
     
-    try:
-        msg = await client.listen(chat_id=message.chat.id, timeout=120)
-        if not msg or not msg.text:
-            await status.edit(f"{EMOJI['error']} **Timeout!**")
-            return
-        
-        batch_input = msg.text.strip()
-        await msg.delete()
-    except asyncio.TimeoutError:
-        await status.edit(f"{EMOJI['error']} **Timeout!**")
+    # Store message ID for later
+    user_states[user_id]["status_msg_id"] = status.id
+
+async def handle_batch_input(client, message: Message):
+    user_id = message.from_user.id
+    
+    if user_id not in user_states or user_states[user_id].get("step") != "waiting_for_batch":
         return
+    
+    batch_input = message.text.strip()
+    status_msg_id = user_states[user_id].get("status_msg_id")
+    
+    try:
+        await message.delete()
+        status = await client.get_messages(message.chat.id, status_msg_id)
+    except:
+        status = await message.reply_text("Processing...")
     
     batch_ids = batch_input.split() if " " in batch_input else [batch_input]
     await status.delete()
@@ -75,3 +89,12 @@ async def extract_command(client, message: Message):
         
         await cleanup_file(filename)
         await progress.edit(f"{EMOJI['success']} **Batch {bid} completed!**")
+    
+    # Clear user state
+    if user_id in user_states:
+        del user_states[user_id]
+
+# Message handler for text
+@filters.text
+async def text_handler(client, message: Message):
+    await handle_batch_input(client, message)
