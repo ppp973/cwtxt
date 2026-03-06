@@ -57,7 +57,6 @@ async def show_page(client, msg, uid, page):
     
     buttons = []
     
-    # Batch ID buttons
     row = []
     for i in range(start, min(start + 5, end)):
         row.append(InlineKeyboardButton(ids[i], callback_data=f"copy_{ids[i]}"))
@@ -71,7 +70,6 @@ async def show_page(client, msg, uid, page):
         if row:
             buttons.append(row)
     
-    # Navigation
     nav = []
     if page > 1:
         nav.append(InlineKeyboardButton("◀️ Prev", callback_data=f"page_{page-1}"))
@@ -80,7 +78,6 @@ async def show_page(client, msg, uid, page):
         nav.append(InlineKeyboardButton("Next ▶️", callback_data=f"page_{page+1}"))
     buttons.append(nav)
     
-    # Actions
     buttons.append([
         InlineKeyboardButton("📥 Extract", callback_data="go_extract"),
         InlineKeyboardButton("🔄 Refresh", callback_data="refresh")
