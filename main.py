@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 CareerWill Premium Bot - Main Entry Point
-Telegram Bot for extracting CareerWill course content
-COMPLETE FINAL VERSION - All errors fixed
+FINAL VERSION with proper session path
 """
 
 import os
 import sys
 import logging
 import asyncio
+import tempfile
 from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -43,17 +43,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create downloads directory
-os.makedirs("downloads", exist_ok=True)
+# Create necessary directories with proper permissions
+DOWNLOAD_DIR = "downloads"
+SESSION_DIR = "/tmp/careerwill_sessions"  # Use /tmp for writable session storage
 
-# Initialize bot
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+os.makedirs(SESSION_DIR, exist_ok=True)
+
+# Set proper permissions
+os.chmod(DOWNLOAD_DIR, 0o777)
+os.chmod(SESSION_DIR, 0o777)
+
+logger.info(f"📁 Download directory: {os.path.abspath(DOWNLOAD_DIR)}")
+logger.info(f"📁 Session directory: {SESSION_DIR}")
+
+# Initialize bot with correct session path
 app = Client(
     "careerwill_bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
     workers=20,
-    workdir="./sessions"
+    workdir=SESSION_DIR  # Use /tmp for session files
 )
 
 # ==================== COMMAND HANDLERS ====================
@@ -164,11 +175,44 @@ async def send_startup_notification():
             f"**Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             f"**Status:** ✅ Online\n"
             f"**Workers:** 20\n"
+            f"**Session Path:** {SESSION_DIR}\n"
             f"**Version:** 3.0.0"
         )
         logger.info("Startup notification sent to channel")
     except Exception as e:
         logger.error(f"Startup notification error: {e}")
+
+# ==================== HEALTH CHECK SERVER ====================
+
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b'''
+        <html>
+            <head><title>CareerWill Bot</title></head>
+            <body>
+                <h1>🤖 CareerWill Bot is Running!</h1>
+                <p>Status: ✅ Online</p>
+                <p>Session Path: /tmp/careerwill_sessions</p>
+            </body>
+        </html>
+        ''')
+    
+    def log_message(self, format, *args):
+        # Suppress log messages
+        pass
+
+def run_health_server():
+    """Run a simple HTTP server for health checks"""
+    port = int(os.environ.get('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    logger.info(f"✅ Health check server running on port {port}")
+    server.serve_forever()
 
 # ==================== MAIN FUNCTION ====================
 
@@ -179,6 +223,7 @@ async def main():
         logger.info(f"📊 API ID: {API_ID}")
         logger.info(f"📊 Bot Token: {BOT_TOKEN[:10]}...")
         logger.info(f"📊 Channel ID: {CHANNEL_ID}")
+        logger.info(f"📊 Session Directory: {SESSION_DIR}")
         
         # Start bot
         await app.start()
@@ -199,30 +244,6 @@ async def main():
         logger.info("🛑 Stopping bot...")
         await app.stop()
         logger.info("✅ Bot stopped")
-
-# ==================== HEALTH CHECK ENDPOINT (for Render) ====================
-
-# This is a simple HTTP server to keep Render happy
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(b'Bot is running!')
-    
-    def log_message(self, format, *args):
-        # Suppress log messages
-        pass
-
-def run_health_server():
-    """Run a simple HTTP server for health checks"""
-    port = int(os.environ.get('PORT', 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    logger.info(f"Health check server running on port {port}")
-    server.serve_forever()
 
 # ==================== ENTRY POINT ====================
 
