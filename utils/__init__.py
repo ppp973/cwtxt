@@ -12,8 +12,8 @@ from .api_helper import (
     get_all_batches,
     process_topic,
     extract_batch,
-    ExtractionProgress,
-    ExtractionStats,
+    ExtractionProgress,  # अब यह मौजूद है
+    ExtractionStats,      # अब यह मौजूद है
     validate_batch_id,
     check_api_status
 )
@@ -55,4 +55,4 @@ __author__ = 'Ayushxsdy'
 
 import logging
 logger = logging.getLogger(__name__)
-logger.info("✅ Utils package initialized")
+logger.info("✅ Utils package initialized with all required classes")
